@@ -6,69 +6,75 @@ Created on Thu Dec 22 23:43:16 2022
 """
 
 import os
+import datetime as dt
+import dateutil as du
+import re
+from tabulate import tabulate
 
-def timezoneShifter(DD, HH, timeshift):
-    '''Shifts time zone of timestamp string with 1hour precision.
+
+def filenameTimeShift(filename, timeshift):
+    '''
 
     Parameters
     ----------
-    DD : int
-        Day number.
-    HH : int
-        Hour.
-    timeshift : TYPE
-        Timeshift in hours.
+    filename : str
+        Filename
+    timeshift : list
+        Desired time shift in the list format [days, hours, minutes, seconds].
 
     Returns
     -------
-    DDs : int
-        Day after shift.
-    HHs : int
-        Hour after shift.
+    tsstr : str
+        New shifted time string for filename renaming.
 
     '''
-    HHs = HH + timeshift
-    HHs_mod = HHs % 24
     
-    if HHs == HHs_mod:
-        DDs = DD
-    elif HHs < HHs_mod:
-        DDs = DD-1
-    else:
-        DDs = DD+1
-    HHs = HHs_mod
+    d, H, M, S = timeshift
+    # t, fuz = du.parser.parse(filename, fuzzy=True, yearfirst=True, 
+    #                          fuzzy_with_tokens=True)
     
-    return DDs, HHs
+    # extract date
+    r = re.findall('\d+', filename )
+    r = [d for d in r if (len(d) in [6,8,12,14])]
+    tstr = ''.join(r)                         # build time string in desired format
+    
+    presuf = filename.rsplit(r[0])[0] + filename.rsplit(r[-1])[-1] # take prefix and suffix
+    
+    t = dt.datetime.strptime(tstr, '%Y%m%d%H%M%S')   # parse substring
+    ts = t + dt.timedelta(days=d, hours=H, minutes=M, seconds=S) # add timeshift
+    
+    tsstr = ts.strftime('%Y%m%d_%H%M%S') # convert to string
+    
+    # build new filename
+    fn_shift = tsstr + presuf
+    
+    return fn_shift
 
 
-def filenameTimezoneShifter(filename, timeshift):
-    '''Take filename and return filename with shifted timestamp.
-    
-    '''
-    # take filename and extract day (DD) and hour (HH)
-    nsplit = filename.split('_')
-    DD = int(nsplit[0][-2:])
-    HH = int(nsplit[1][0:2])
-    
-    DDs, HHs = timezoneShifter(DD, HH, timeshift)
-      
-    HH = f'{HH:02}'
-    DD = f'{DD:02}'  
-    HHs = f'{HHs:02}'
-    DDs = f'{DDs:02}'
-    
-    nsplit[0] = nsplit[0].replace(DD, DDs, -1) # replace only last instance
-    nsplit[1] = nsplit[1].replace(HH, HHs, 1)  # replace only first instance
-    
-    return '_'.join(nsplit)
-
-
-# fld = r'F:\WIP\[2022-11-13] Japan\temp\\'
+# fld = r'D:\WIP\[2022-11-13] Japan\temp\\'
 fld = r'C:\_WORK\git\timezone-shifter\test'
-timeshift = 8 # time shift in hours
+timeshift = [0, 0, -10, 0] # time shift in [days, hours, minutes, seconds]
 
 ls = os.listdir(fld)
 
-for fn in ls: # loop through folder
-    fns = filenameTimezoneShifter(fn, timeshift)
-    os.rename(fld+'\\'+fn, fld+'\\'+fns)
+# loop through folder and show names preview
+lss =[]
+for fn in ls:
+    lss.append(filenameTimeShift(fn, timeshift))
+print('Files will be renamed as follows:\n')
+print(tabulate(list(zip(*[ls,lss])))) # build 2D list, transpose, tabulate
+
+
+user_input = input('Do you want to proceed (yes/no): ')
+
+if user_input.lower() in ['yes', 'y']:
+    # loop through folder and rename
+    for fn in ls: 
+        fns = filenameTimeShift(fn, timeshift)
+        os.rename(fld+'\\'+fn, fld+'\\'+fns)
+    print('All files renamed.')
+elif user_input.lower() in ['no', 'n']:
+    print('Calceled')
+else:
+    print('Canceled.')
+
